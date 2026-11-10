@@ -1,0 +1,6 @@
+# Protocol I: M+C2+C3 -> MS   (paper RN50: 12.9 / 33.7, ViT: 32.2 / 60.3)
+# Protocol III uses the same model: see p3_sources.yaml.
+output_dir: runs/p1_msmt17
+data:
+  sources: [market1501, cuhk02, cuhk03]
+  targets: [msmt17]

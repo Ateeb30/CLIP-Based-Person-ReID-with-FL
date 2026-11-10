@@ -1,0 +1,117 @@
+# Full CO-EVO configuration (RN50 backbone, Protocol I target Market-1501).
+# Every other file in this folder is an overlay that changes a few of these keys.
+# [P] = stated in the paper; everything else is a default recorded in ASSUMPTIONS.md.
+
+seed: 1
+device: auto                 # auto | cuda | cpu
+deterministic: true
+amp: true                    # mixed precision (CUDA only)
+output_dir: runs/p1_market_rn50
+
+data:
+  root: data
+  sources: [msmt17, cuhk02, cuhk03]
+  targets: [market1501]
+  height: 256
+  width: 128
+  num_workers: 4               # per client loader (kept alive across rounds)
+  sampler:
+    num_instances: 4
+  augment:
+    interpolation: bicubic
+    hflip_prob: 0.5
+    pad: 10
+    random_erasing_prob: 0.5
+    random_erasing_value: 0.0
+  datasets:
+    market1501:
+      dir: market1501/Market-1501-v15.09.15
+    msmt17:
+      dir: msmt17/MSMT17_V2
+      train_dir: mask_train_v2   # MSMT17_V1: train
+      test_dir: mask_test_v2     # MSMT17_V1: test
+      merge_val: true
+    cuhk02:
+      dir: cuhk02/Dataset
+      test_pair: P5
+    cuhk03:
+      dir: cuhk03/cuhk03_release
+      split_id: 0
+
+# CLIP model used for semantic anchoring (and as the backbone when model.backbone = clip_vit)
+clip:
+  arch: ViT-B-16               # [P]
+  pretrained: openai
+  pixel_mean: [0.5, 0.5, 0.5]
+  pixel_std: [0.5, 0.5, 0.5]
+  tiny: null                   # smoke tests only: build a small random CLIP instead
+
+model:
+  backbone: resnet50           # resnet50 | clip_vit
+  resnet50:
+    pretrained: imagenet       # imagenet | none
+    last_stride: 1
+    proj_dim: 512              # size of the CLIP text space the anchors live in
+    pixel_mean: [0.485, 0.456, 0.406]
+    pixel_std: [0.229, 0.224, 0.225]
+
+method:
+  use_csa: true                # false: no Phase I, no L_align
+  use_gsd: true                # false: original view only
+
+# Phase I: CSA
+phase1:
+  cache_dir: cache/anchors
+  num_tokens: 4                # [P] L
+  tau: 0.07                    # [P]
+  lambda_c3: 0.1               # [P]
+  c3_reduction: sum            # sum | mean
+  epochs: 120                  # [P] "120 rounds"
+  batch_size: 64
+  iters_per_epoch: images      # images: N/batch (CLIP-ReID) | sampler: ids*4/batch | integer
+  lr: 3.5e-4
+  weight_decay: 1.0e-4
+  warmup_epochs: 5
+  warmup_lr_init: 1.0e-5
+  lr_min: 1.0e-6
+  log_every: 10
+
+# Phase II: GSD
+style:
+  eps: 1.0e-8
+  per_image: true              # one template per image; false: one per batch
+  bank_batch_size: 256
+
+# Coupled federated loop
+fed:
+  rounds: 60                   # [P]
+  local_epochs: 1              # [P]
+  local_iters: null            # integer: fixed iterations per round instead of epochs (DACS: 200)
+  batch_size: 64               # [P]
+  aggregator: fedavg           # [P]
+  optimizer:
+    lr: 1.0e-3                 # [P]
+    momentum: 0.9              # [P]
+    weight_decay: 5.0e-4       # [P]
+  lr_milestones: [20, 30]      # rounds (0-based), MultiStepLR [P: schedule type only]
+  lr_gamma: 0.5
+
+loss:
+  id_weight: 1.0               # [P]
+  triplet_weight: 1.0          # [P]
+  align_weight: 1.0            # lambda
+  tau: 0.07                    # [P]
+  triplet_margin: 0.5
+  triplet_feature: feat_bn     # feat_bn | feat
+
+eval:
+  every: 10                    # rounds; the final round is always evaluated
+  batch_size: 256
+  metric: euclidean            # euclidean | cosine
+
+log:
+  tensorboard: true
+
+ckpt:
+  auto_resume: true            # continue from <output_dir>/ckpt/last.pt when it exists
+  keep_every: 10               # also keep round_XXX.pt every N rounds (last.pt is written every round)

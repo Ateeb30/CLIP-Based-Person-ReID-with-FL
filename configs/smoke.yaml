@@ -1,0 +1,40 @@
+# CPU smoke test on tools/make_synthetic.py data: tiny random CLIP, un-pretrained
+# ResNet-50, 2 rounds. Checks that the whole pipeline runs, not that it learns.
+device: cpu
+output_dir: runs/smoke
+data:
+  root: data_synthetic
+  sources: [msmt17, cuhk02, cuhk03]
+  targets: [market1501]
+  height: 64
+  width: 32
+  num_workers: 0
+  augment:
+    pad: 4
+clip:
+  tiny:
+    embed_dim: 32
+    width: 64
+    heads: 2
+    layers: 2
+    patch_size: 16
+model:
+  resnet50:
+    pretrained: none
+    proj_dim: 32
+phase1:
+  cache_dir: runs/smoke/anchors
+  epochs: 3
+  batch_size: 8
+  warmup_epochs: 1
+  log_every: 1
+style:
+  bank_batch_size: 16
+fed:
+  rounds: 2
+  batch_size: 8
+eval:
+  every: 1
+  batch_size: 16
+ckpt:
+  keep_every: 1

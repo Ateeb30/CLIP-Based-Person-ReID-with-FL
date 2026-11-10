@@ -1,0 +1,4 @@
+# Table 7 row 2: CSA only.
+method:
+  use_csa: true
+  use_gsd: false

@@ -1,0 +1,5 @@
+# Protocol I: MS+C2+M -> C3   (paper RN50: 34.9 / 37.1 in Tables 1-2, 37.1 / 38.9 in Tables 4-9; ViT: 51.3 / 52.7)
+output_dir: runs/p1_cuhk03
+data:
+  sources: [msmt17, cuhk02, market1501]
+  targets: [cuhk03]

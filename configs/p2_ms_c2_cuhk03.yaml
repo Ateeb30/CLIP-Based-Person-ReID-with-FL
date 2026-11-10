@@ -1,0 +1,5 @@
+# Protocol II: MS+C2 -> C3   (paper: 29.4 / 34.2)
+output_dir: runs/p2_ms_c2_cuhk03
+data:
+  sources: [msmt17, cuhk02]
+  targets: [cuhk03]

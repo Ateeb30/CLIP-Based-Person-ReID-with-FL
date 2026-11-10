@@ -1,0 +1,4 @@
+# Table 7 row 1: no CSA, no GSD (FedAvg with ID + triplet loss only).
+method:
+  use_csa: false
+  use_gsd: false

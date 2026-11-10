@@ -1,0 +1,5 @@
+# CLIP ViT-B/16 image encoder as the trainable backbone (Table 1, ViT rows).
+# Put this after the protocol overlay and set output_dir, e.g.
+#   --config configs/base.yaml configs/p1_market.yaml configs/backbone_vit.yaml --set output_dir=runs/p1_market_vit
+model:
+  backbone: clip_vit

@@ -1,0 +1,5 @@
+# Protocol I: MS+C2+C3 -> M   (paper RN50: 42.4 / 71.2, ViT: 60.7 / 80.2)
+output_dir: runs/p1_market
+data:
+  sources: [msmt17, cuhk02, cuhk03]
+  targets: [market1501]

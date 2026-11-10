@@ -1,0 +1,5 @@
+# Protocol II: MS+C2 -> M   (paper: 36.9 / 67.1)
+output_dir: runs/p2_ms_c2_market
+data:
+  sources: [msmt17, cuhk02]
+  targets: [market1501]

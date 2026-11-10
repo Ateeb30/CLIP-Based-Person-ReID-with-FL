@@ -1,0 +1,7 @@
+# Protocol III: clients {M, C2, C3}, tested on each client's own test split
+# (paper: M 81.4 / 93.1, C2 89.8 / 91.2, C3 59.7 / 63.1).
+# MSMT17 is included as a target so this one run also gives Protocol I  M+C2+C3 -> MS.
+output_dir: runs/p3_sources
+data:
+  sources: [market1501, cuhk02, cuhk03]
+  targets: [market1501, cuhk02, cuhk03, msmt17]

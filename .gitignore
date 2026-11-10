@@ -1,0 +1,47 @@
+# Patterns starting with "/" match only at the repo root.
+# (A bare "data/" would also hide the code package coevo/data/.)
+
+# ---- datasets (never commit)
+/data/
+/data_synthetic/
+/MSMT17_V2/
+/MSMT17_V1/
+/MSMT17*/
+/Market-1501*/
+/market1501/
+/msmt17/
+/cuhk02/
+/cuhk03/
+/cuhk03_release/
+/Dataset/
+__MACOSX/
+.DS_Store
+*.zip
+*.rar
+*.7z
+*.tar
+*.tar.gz
+*.tgz
+*.mat
+
+# ---- paper PDF (redistribution not clearly allowed by the arXiv licence)
+*.pdf
+
+# ---- run outputs
+/runs/
+/cache/
+*.pt
+*.pth
+*.ckpt
+*.log
+events.out.tfevents.*
+
+# ---- environment / tooling
+.venv/
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.vscode/
+.idea/
+.claude/
