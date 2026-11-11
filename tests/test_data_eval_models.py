@@ -169,6 +169,31 @@ def test_prompt_text_encoder_matches_clip_encode_text(smoke_cfg):
     assert learner.cls_ctx.grad[0].abs().sum() > 0 and learner.cls_ctx.grad[1:].abs().sum() == 0
 
 
+def test_vit_backbone_is_trainable_when_clip_is_frozen(smoke_cfg):
+    """Regression: runner freezes CLIP for Phase I before building the encoder; the copied
+    ViT tower must still be trained by the client optimizer."""
+    from coevo.data import build_train_transform, load_dataset
+    from coevo.fed import Client
+
+    cfg = load_config([CONFIGS / "base.yaml", CONFIGS / "smoke.yaml"],
+                      [f"data.root={smoke_cfg.data.root}", "model.backbone=clip_vit", "fed.local_iters=1"])
+    clip, _ = build_clip(cfg.clip, (cfg.data.height, cfg.data.width))
+    clip.requires_grad_(False)  # as in runner.run
+    model, mean, std = build_image_encoder(cfg, clip)
+
+    assert all(p.requires_grad for p in model.visual.parameters())
+    assert model.proj.requires_grad and model.feat_bn.weight.requires_grad
+    assert not model.feat_bn.bias.requires_grad  # BNNeck: bias frozen on purpose
+    assert not any(p.requires_grad for p in clip.parameters())  # the original stays frozen
+
+    data = load_dataset("msmt17", cfg.data)
+    client = Client("msmt17", data, build_train_transform(cfg.data, mean, std), model.feat_dim, cfg,
+                    torch.device("cpu"))
+    before = model.visual.conv1.weight.detach().clone()
+    state, _ = client.train_round(model, model.state_dict(), lr=0.1, gsd=None)
+    assert not torch.equal(state["visual.conv1.weight"], before)
+
+
 @pytest.mark.parametrize("backbone", ["resnet50", "clip_vit"])
 def test_image_encoder_interface(smoke_cfg, backbone):
     cfg = load_config([CONFIGS / "base.yaml", CONFIGS / "smoke.yaml"], [f"model.backbone={backbone}"])

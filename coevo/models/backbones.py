@@ -49,6 +49,7 @@ class ClipViTEncoder(nn.Module):
     def __init__(self, clip_model):
         super().__init__()
         self.visual = copy.deepcopy(clip_model.visual)
+        self.visual.requires_grad_(True)  # clip_model is frozen for Phase I; the copy is the trainable backbone
         proj = self.visual.proj
         self.visual.proj = None  # the tower now returns the un-projected class token
         self.proj = nn.Parameter(proj.detach().clone())

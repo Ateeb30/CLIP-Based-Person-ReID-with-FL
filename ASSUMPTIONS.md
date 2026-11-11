@@ -50,6 +50,7 @@ tested without touching code. Rows marked **code** are structural and need a cod
 | A11 | Round evaluation uses the aggregated global model in eval mode (aggregated BN running statistics). | **code** | DACS |
 | A12 | MSMT17 V1 is supported only in its official layout (`train/`, `test/`, same file names as V2) by changing two config keys. The Market-style V1 re-packaging that DACS reads is not supported. | `data.datasets.msmt17.train_dir/test_dir` | no V1 copy available |
 | A13 | `tools/prepare_cuhk03.py` re-implements open-reid's conversion from memory. It has not been run on the real `cuhk-03.mat`. | — | no CUHK03 copy available |
+| A14 | The MSMT17_V2 zip used has three truncated JPEGs: `mask_train_v2/1029/1029_018_13_0114afternoon_0972_0.jpg` (train), `mask_test_v2/2590/2590_006_07_0114noon_0223_2.jpg` (query), `mask_test_v2/2592/2592_003_07_0114noon_0229_0_ex.jpg` (gallery). They were re-saved with the missing tail padded (PIL `LOAD_TRUNCATED_IMAGES`), outside the code. Effect expected negligible (3 of 126,441 images). | — | damaged archive |
 
 ## Known departures from bit-exact reproducibility
 
