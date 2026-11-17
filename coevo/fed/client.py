@@ -20,6 +20,19 @@ def cycle(loader, num_iters: int):
                 return
 
 
+def build_optimizer(model: nn.Module, classifier: nn.Module, lr: float, opt_cfg) -> torch.optim.SGD:
+    """SGD over two parameter groups: the encoder's pretrained backbone at
+    `lr * opt_cfg.backbone_lr_scale`, every new layer and the classifier at `lr`.
+    A scale of 1.0 is the paper's single learning rate (ASSUMPTIONS A15)."""
+    backbone_ids = {id(p) for p in model.backbone_parameters()}
+    trainable = [p for p in model.parameters() if p.requires_grad]
+    backbone = [p for p in trainable if id(p) in backbone_ids]
+    head = [p for p in trainable if id(p) not in backbone_ids] + list(classifier.parameters())
+    return torch.optim.SGD(
+        [{"params": backbone, "lr": lr * opt_cfg.backbone_lr_scale}, {"params": head, "lr": lr}],
+        lr=lr, momentum=opt_cfg.momentum, weight_decay=opt_cfg.weight_decay)
+
+
 class Client:
     def __init__(self, name: str, data: ReIDData, transform, feat_dim: int, cfg, device):
         self.name = name
@@ -53,9 +66,7 @@ class Client:
         model.load_state_dict(global_state)
         model.train()
         self.classifier.train()
-        params = [p for p in model.parameters() if p.requires_grad] + list(self.classifier.parameters())
-        optimizer = torch.optim.SGD(params, lr=lr, momentum=cfg.fed.optimizer.momentum,
-                                    weight_decay=cfg.fed.optimizer.weight_decay)
+        optimizer = build_optimizer(model, self.classifier, lr, cfg.fed.optimizer)
         scaler = torch.amp.GradScaler(self.device.type, enabled=amp)
 
         sums = {"loss": 0.0, "id": 0.0, "tri": 0.0, "align": 0.0}

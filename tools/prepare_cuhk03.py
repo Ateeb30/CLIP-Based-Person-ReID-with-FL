@@ -7,8 +7,9 @@
 
 Re-implementation of the conversion in open-reid's `reid/datasets/cuhk03.py`
 (labeled and detected boxes are both kept, cameras 1-5 of each pair collapse to
-camera 0 / 1). NOT yet run against the real file: check the printed counts
-(1,467 identities, 20 splits, 100 test identities per split) before training.
+camera 0 / 1). On the real file it prints
+`identities: 1467  images: 28193  splits: 20  test ids in split 0: 100`;
+check for exactly these counts before training.
 
     python tools/prepare_cuhk03.py --mat data/cuhk03/cuhk03_release/cuhk-03.mat --out data/cuhk03/cuhk03_release
 """

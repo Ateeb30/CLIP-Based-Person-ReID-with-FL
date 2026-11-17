@@ -1,8 +1,9 @@
 # GPU machine setup (Windows, RTX 5080, reached with AnyDesk)
 
 Runs are started directly on the PC and are local processes there, so nothing depends on the
-AnyDesk connection staying up. All commands are PowerShell. Nothing in this file has been run on
-the GPU machine; treat the first pass as a checklist and tell me where it deviates.
+AnyDesk connection staying up. All commands are PowerShell. Sections 3-6 were followed on the GPU PC
+in November 2026 (environment, tests, smoke runs, data, full runs, resume). The GPU PC only pulls:
+no tracked file is edited there, and settings are changed with `--set`, not by editing configs.
 
 ## 1. AnyDesk
 
@@ -100,13 +101,14 @@ data/
   cuhk03/cuhk03_release/{images/,meta.json,splits.json}   # produced by the next command
 ```
 
-CUHK03 conversion (once; this script has not been run against the real file yet):
+CUHK03 conversion (once):
 
 ```powershell
 python tools\prepare_cuhk03.py --mat data\cuhk03\cuhk03_release\cuhk-03.mat --out data\cuhk03\cuhk03_release
 ```
 
-It must print `identities: 1467 ... splits: 20 test ids in split 0: 100`. Anything else: stop and tell me.
+It must print `identities: 1467  images: 28193  splits: 20  test ids in split 0: 100` (what it printed
+on the real file in November 2026). Anything else: stop and tell me.
 
 Check all four:
 
@@ -121,7 +123,7 @@ Expected (train ids / train images; query; gallery):
 | market1501 | 751 / 12,936 | 3,368 | 15,913 (junk removed) |
 | msmt17 | 1,041 / 32,621 | 11,659 | 82,161 |
 | cuhk02 | 1,577 ids | P5 cam1 | P5 cam2 |
-| cuhk03 | 1,367 ids | 200 | rest of the 100 test ids |
+| cuhk03 | 1,367 / 26,263 | 200 | 1,730 |
 
 and `missing files: 0` on every line. `train.py` refuses to start if any file is missing.
 

@@ -5,6 +5,8 @@
     out["feat_bn"]   feature after the BatchNorm neck (classifier input, test feature)
     out["proj"]      feature in the CLIP text space, used by L_align
     encoder.feat_dim / encoder.proj_dim
+    encoder.backbone_parameters()   the pretrained parameters; the client optimizer trains
+                                    them at lr * fed.optimizer.backbone_lr_scale
 """
 from __future__ import annotations
 
@@ -41,6 +43,11 @@ class ResNet50Encoder(nn.Module):
         feat_bn = self.feat_bn(feat)
         return {"feat": feat, "feat_bn": feat_bn, "proj": self.text_proj(feat_bn)}
 
+    def backbone_parameters(self) -> list[nn.Parameter]:
+        """The ImageNet-pretrained trunk. `text_proj` is a new layer and is not included
+        (`feat_bn` has no parameters)."""
+        return list(self.base.parameters())
+
 
 class ClipViTEncoder(nn.Module):
     """CLIP ViT image tower. `feat` is the class token after the final LayerNorm,
@@ -60,3 +67,8 @@ class ClipViTEncoder(nn.Module):
     def forward(self, x: torch.Tensor) -> dict:
         feat = self.visual(x)
         return {"feat": feat, "feat_bn": self.feat_bn(feat), "proj": feat @ self.proj}
+
+    def backbone_parameters(self) -> list[nn.Parameter]:
+        """The CLIP-pretrained tower and CLIP's projection. `feat_bn` is a new layer and
+        is not included."""
+        return list(self.visual.parameters()) + [self.proj]

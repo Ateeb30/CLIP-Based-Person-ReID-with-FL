@@ -4,7 +4,7 @@ Source: `CO-EVO paper.pdf` (arXiv 2604.26363v1, 12 pages incl. Appendix A.1), re
 Reference code actually read for defaults:
 
 - **CLIP-ReID** (`Syliz517/CLIP-ReID`): prompt learner, stage-1/stage-2 processors, configs.
-- **DACS** (`FlyingRoastDuck/DACS_official`): the FedDG-ReID codebase whose numbers CO-EVO's baseline rows copy. CO-EVO's stated optimizer settings (SGD, lr 1e-3, wd 5e-4, momentum 0.9, batch 64, MultiStepLR) are identical to DACS's argparse defaults, so DACS is treated as the most likely base code.
+- **DACS** (`FlyingRoastDuck/DACS_official`): the FedDG-ReID codebase whose numbers CO-EVO's baseline rows copy. CO-EVO's stated optimizer settings (SGD, lr 1e-3, wd 5e-4, momentum 0.9, batch 64, MultiStepLR) are identical to DACS's argparse defaults, so DACS is treated as the most likely base code. DACS's paper and supplement (`figures/AAAI24.pdf`, `figures/supp.pdf` in that repo) were read on 2026-11-17; what they add is in §2 (inconsistency 6), §3.1 and §4.
 - CO-EVO official repo: `git ls-remote` fails (confirmed not public). SSCU code was not consulted.
 
 Tags used below: **[P]** stated in the paper, **[D]** DACS code default, **[C]** CLIP-ReID code default, **[A]** my assumption.
@@ -144,6 +144,7 @@ One training run (M+C2+C3), which is also the Protocol I →MS run.
 3. The "no CSA, no GSD" ablation row is digit-for-digit the FedPav row, which itself matches DACS's published FedPav numbers. So the ablation baseline was probably not re-run, and it implies the RN50 pipeline is the DACS one (ImageNet RN50).
 4. Phase I is described in "rounds" although nothing is aggregated in Phase I.
 5. Table 2 FedPav MS+C2+C3→M R1 is 49.1 vs 49.4 in Table 1 (cosmetic).
+6. **Table 2's two-source baseline rows are not DACS's published ones** (added 2026-11-17). DACS's supplement (its Table 1) gives FedPav MS+C3→M 24.8 / 48.6, MS+C2→M 25.8 / 50.4, MS+M→C3 19.9 / 18.5, MS+C2→C3 21.4 / 24.5 and DACS 31.8 / 56.6, 32.0 / 57.1, 23.8 / 25.4, 27.9 / 30.5. CO-EVO's Table 2 lists FedPav 27.5 / 51.5, 24.8 / 48.5, 15.2 / 14.1, 17.3 / 17.0 and DACS 33.2 / 58.1, 30.3 / 56.3, 18.2 / 17.7, 22.9 / 23.5. The three-source columns are identical to DACS's. So the two-source baselines were re-run by someone else (CO-EVO or SSCU) in a setup we do not know, in which →C3 comes out 4-6 mAP lower than in DACS's own setup and →M within ±3.
 
 ---
 
@@ -156,14 +157,14 @@ Sensitivity: **H** = plausibly > 2 mAP, **M** = 0.5-2, **L** = < 0.5. These are 
 | G1 | RN50 variant, and how a 2048-d CNN feature is aligned with 512-d CLIP ViT-B/16 text anchors | **RN50 rows**: ImageNet torchvision RN50 exactly as DACS (last stride 1, GAP, BN w/o affine, 2048-d) + one bias-free linear 2048→512 used only for `L_align`, aggregated with `θ`. Phase I always uses frozen CLIP ViT-B/16. **ViT rows**: CLIP ViT-B/16 image encoder as the trainable backbone (stride 16), its native 512-d projection used for `L_align`. | Paper says ViT-B/16 is the anchoring base and RN50/ViT are swappable backbones; ablation baseline = DACS FedPav (ImageNet RN50). ViT row's +15 mAP over DACS(ViT) is only plausible with CLIP init. Alternative: CLIP RN50 end to end (CLIP-ReID CNN config, 1024-d). | **H** |
 | G2 | Meaning of "E = 1 epoch" | One pass of the PK sampler = `num_ids × 4 / 64` iterations (≈65 MS, 46 M, 98 C2, 85 C3). | Literal reading. DACS instead runs a fixed **200 iterations** per round per client (≈2-4× more steps); if CO-EVO kept that and called it an epoch, we under-train. | **H** |
 | G3 | `λ` (weight of `L_align`) | 1.0 | CLIP-ReID `I2T_LOSS_WEIGHT = 1.0`. | **M-H** |
-| G4 | CUHK03 version and split | DACS loader: open-reid format (`meta.json`, `splits.json`), split 0, 1,367 train IDs, 100 test IDs, query = last image per camera per ID, gallery = the rest. | Baseline numbers come from this loader. Alternative: CUHK03-NP 767/700. Labeled vs detected boxes also unknown (default: whatever the open-reid conversion yields; must be confirmed when the data arrives). | **H** for every →C3 number and for C3-as-source |
+| G4 | CUHK03 version and split | DACS loader: open-reid format (`meta.json`, `splits.json`), split 0, 1,367 train IDs, 100 test IDs, labeled + detected boxes merged, query = last image per camera per ID, gallery = the rest. | DACS's baseline numbers come from this loader, and DACS's supplement gives the same totals as our conversion of the real file (1,467 IDs, 28,193 images), so merged boxes are confirmed for DACS. Alternative: CUHK03-NP 767/700. **Measured, not settled (3.1):** the same checkpoint scores 31.6 mAP under this protocol and 16-17 under CUHK03-NP; the paper's 24.3 lies in between. | **H** for every →C3 number and for C3-as-source |
 | G5 | MultiStepLR milestones / gamma | milestones **[20, 30]**, gamma **0.5**, stepped per round | DACS defaults, which stay in force if DACS is run with `--epochs 60`. Alternative: [30, 50], 0.1 (CLIP-ReID stage 2, also 60 epochs). | **M** |
 | G6 | Phase I optimisation | Adam, lr 3.5e-4, wd 1e-4, cosine schedule, 5 warm-up epochs from 1e-5, **120 local epochs**, batch 64, image features pre-extracted once from un-augmented images, AMP | CLIP-ReID ViT stage 1; "120 rounds" read as 120 epochs because Phase I has no aggregation. | **M** |
 | G7 | Phase I batch sampler | PK sampler (16 IDs × 4, other-camera positives preferred) | `L_c3` needs same-ID / different-camera pairs in the batch; CLIP-ReID's random-permutation batches almost never contain them. Deviation from CLIP-ReID forced by Eq. 3. | **M** |
 | G8 | Triplet margin `α`, mining, distance | Batch-hard, Euclidean, margin **0.5**, on the BN feature | DACS `TripletLoss(margin=0.5)`. Alternative 0.3 (CLIP-ReID). | **L-M** |
 | G9 | Input size, augmentation, normalisation | 256×128; resize (bicubic), h-flip 0.5, pad 10 + random crop, normalise, random erasing 0.5 (mean fill). ImageNet mean/std for RN50; CLIP-ReID's 0.5/0.5 for CLIP ViT and for Phase I feature extraction. | DACS / CLIP-ReID, which agree except on normalisation. | **L-M** |
-| G10 | Model selection | Report **final round (60)**. Also evaluate every 10 rounds and log the best round separately. | DACS keeps the best-on-target checkpoint (evaluated every 10 rounds), which selects on the test set; the paper is silent. Both numbers go in RESULTS.md, labelled. | **M** |
-| G11 | Test feature and distance | RN50: 2048-d BN feature, Euclidean distance, no L2-norm, no re-ranking. ViT: 768-d BN-neck feature, same. Same-ID-same-camera gallery entries removed; Market junk (pid −1) dropped. | DACS evaluator. | **L-M** |
+| G10 | Model selection | Report **final round (60)**. Also evaluate every 10 rounds and log the best round separately. | DACS's code saves the best-on-target checkpoint (evaluated every 10 rounds), which selects on the test set, while DACS's supplement says the final global model is evaluated; CO-EVO is silent. RESULTS.md reports the final round and notes when the best evaluated round differs. | **M** |
+| G11 | Test feature and distance | RN50: 2048-d BN feature, Euclidean distance, no L2-norm, no re-ranking. ViT: 768-d BN-neck feature, same. Same-ID-same-camera gallery entries removed; Market junk (pid −1) dropped. | DACS evaluator (code). DACS's text says "Euclidean distance of pool-5 features"; its code returns the BN-ed pool-5 feature at test time, which is what we use. | **L-M** |
 | G12 | MSMT17 version and train split | Paper/DACS: **MSMT17_V1**, train+val merged (1,041 IDs, 32,621 images), standard query/gallery lists. We have V2. | DACS loader. V2 has the same identities and split lists but blurred faces and a different folder/filename layout; the size of the shift is unknown, not expected to be large. | **L-M** |
 | G13 | Template statistics (Eq. 5) | Computed on the normalised, un-augmented 256×128 tensor; `μ_{k,c}` = mean over the camera's images of per-image channel means, `σ²_{k,c}` = mean of per-image channel variances. 3+3 numbers per camera. | Eq. 6 uses per-image `μ(x), σ²(x)` (same as DACS's `norm_image`), so the template should live in the same per-image space. Alternative: pooled-pixel variance (larger σ²). | **M** |
 | G14 | Template sampling | One template drawn uniformly from the whole bank **per image**, every step, own cameras included; `x'` made from the augmented `x`; stylisation probability 1; `ε = 1e-8` | "(μ_s, σ²_s) ~ B"; Alg. 1 line 12. Alternatives: one per batch; exclude own client. | **M** |
@@ -177,18 +178,56 @@ Sensitivity: **H** = plausibly > 2 mAP, **M** = 0.5-2, **L** = < 0.5. These are 
 | G22 | CUHK02 split | P1-P4 train (1,577 IDs), P5 test (cam1 = query, cam2 = gallery) | DACS loader. | **L** |
 | G23 | AMP, seeds | AMP on in Phase II (your 16 GB requirement); seed 1 | Infra choice, not in paper. DACS seed = 1. | **L** |
 | G24 | Table 4 settings (noise model, K for K-means) | Not implemented in the first pass | Robustness study, not needed for Protocols I-III. | n/a |
+| G25 | Phase II LR / optimizer for the CLIP ViT backbone. The paper states SGD, lr 1e-3, batch 64 once, for all rows; this is a departure from a stated value, not an unstated detail. | Same SGD. Pretrained ViT weights (`visual` + CLIP's `proj`) at lr × 1e-3 = 1e-6; new layers (BN neck, classifiers) at the paper's 1e-3. RN50 rows keep one LR (scale 1.0). | The stated single LR cannot train a CLIP ViT, and a single small LR leaves the classifier at chance (evidence in 3.2). Smallest deviation: keep the paper's optimizer and LR for every new layer and scale only the pretrained weights. Alternatives: CLIP-ReID's Adam 5e-6 with warm-up; other scales; a ViT that is not CLIP-initialised (G1). | **H** (ViT rows only) |
+
+### 3.1 G4 follow-up: CUHK03 protocol check (measured on the GPU PC, 2026-11; not settled)
+
+The round-60 global model of `runs/p2_ms_m_cuhk03` (MS+M→C3, RN50, commit 59245ee; paper 24.3 / 25.1) was re-evaluated under several CUHK03 test protocols. Features were extracted once and only the query/gallery index sets changed; nothing was retrained. Protocol A reproduces `train.log` exactly, and the CUHK03-NP file-name mapping passed 40 checks against the image pixels in `cuhk-03.mat`. The evaluation script and a CUHK03-NP loader are not in the repo.
+
+| Protocol | mAP | R1 | mAP − paper (24.3) |
+|---|---|---|---|
+| A. Old split 0, query = last image per (id, camera). The loader's protocol and the one reported. | 31.56 | 34.00 | +7.3 |
+| B. Same rule, all 20 official splits: mean ± sd [min, max] | 34.42 ± 2.67 [29.59, 38.67] | 36.62 ± 3.33 [30.00, 43.50] | +5.3 to +14.4 |
+| C. Old split 0, labeled boxes only (gallery 766) | 35.85 | 34.50 | +11.6 |
+| C. Old split 0, detected boxes only (gallery 766) | 33.96 | 34.00 | +9.7 |
+| D. CUHK03-NP detected (700 ids, 1,400 query, 5,332 gallery) | 16.35 | 15.00 | −8.0 |
+| D. CUHK03-NP labeled (700 ids, 1,400 query, 5,328 gallery) | 17.37 | 16.21 | −6.9 |
+
+- →C3 numbers depend heavily on the protocol: 31.6 (old split 0) vs 16-17 (CUHK03-NP) for the same model.
+- Split noise is not enough: the 100-id test set moves ±2.7 mAP across splits, but even the worst split (29.6) is 5 mAP above the paper.
+- Labeled vs detected is not it: each subset alone scores higher than the merged set.
+- The paper's number lies between the two protocol families, so we cannot tell whether we are above or below the paper until its protocol is known. Trying more variants until one lands on 24.3 would be fitting the protocol to the target, so it was not done.
+
+From DACS's paper, supplement and code (read 2026-11-17):
+
+- DACS's released loader is protocol A, on merged boxes (28,193 images, 1,467 IDs in its supplement). DACS's own →C3 numbers are therefore protocol-A numbers.
+- CO-EVO's two-source →C3 baseline rows are 4-6 mAP below DACS's own (§2, inconsistency 6), so CO-EVO's →C3 column in Table 2, including its own 24.3, may come from a different footing than protocol A. This is an inference, not established. It is testable without CUHK02 (§4, rank 3).
+
+### 3.2 G25: why the stated LR cannot be used for the CLIP ViT (measured on the GPU PC, 2026-11)
+
+All with real MSMT17 batches and the project's own losses, after the frozen-tower fix (59245ee). The runs are single-source diagnostics, not paper settings.
+
+- Gradient norm into the ViT tower at initialisation: `L_id` 42, `L_align` 59, `L_tri` 506.
+- One plain SGD step at lr 1e-3 drops the mean cosine similarity between the features before and after the step to 0.51: the pretrained CLIP features are destroyed in one step.
+- Not an attention-kernel artefact: default vs math SDPA kernel, worst relative gradient difference 3.7e-5.
+- MS→M, ViT, one LR for all parameters: lr 1e-3 → 0.24 mAP at round 10, stopped (fp32 without AMP collapses the same way, 0.23 at round 1). lr 1e-5 → 0.70 mAP at round 10. lr 1e-6 → 39.53 / 64.79 at round 60, but the classifier does not learn: the ID loss at round 60 is 7.01 ≈ ln 1041 = 6.95, i.e. chance.
+
+So a single LR has to be large for the newly initialised classifier and BN neck and tiny for the pretrained tower. The scale 1e-3 (`fed.optimizer.backbone_lr_scale` in `configs/backbone_vit.yaml`) is the only one with evidence behind it: the tower was stable at 1e-6 and collapsed at 1e-5. Whether the tower stays stable once the classifier really trains is what the first ViT runs have to show (§4).
+
+Besides another LR recipe, one more reading fits the paper's text: the ViT rows were not initialised from CLIP. DACS's ViT scripts train an ImageNet ViT-B/16 with exactly SGD lr 1e-3, momentum 0.9. Only the authors can settle this (§7).
 
 ---
 
 ## 4. Gaps ranked by likely mAP impact, with the cheapest test
 
-All tests: Protocol I, **MS+C2+C3→M**, RN50, one seed, change one thing against the default. Market is the cheapest target to evaluate and has the widest ablation coverage in the paper. CUHK03 tests use MS+C2+M→C3.
+All tests: Protocol I, **MS+C2+C3→M**, RN50, one seed, change one thing against the default. Market is the cheapest target to evaluate and has the widest ablation coverage in the paper. CUHK03 tests use MS+C2+M→C3. Until CUHK02 is available none of these settings can be run; tests use the Protocol II settings MS+C3→M and MS+M→C3 instead.
 
 | Rank | Gap | Cheapest experiment | What decides it |
 |---|---|---|---|
-| 1 | G1 backbone / projection | (a) default vs (b) CLIP RN50 end to end. Run the "no CSA, no GSD" config first: it must land near 25.4 / 49.4. | If our FedPav baseline is already far above 25.4, the backbone is not ImageNet RN50 as DACS uses it. |
+| ViT | G25 ViT backbone LR. Applies to the ViT rows only and comes first there. | MS+C3→M with `backbone_vit.yaml`: `fed.optimizer.backbone_lr_scale` 1e-3, then 3e-3. No paper number exists for this setting (every ViT row is Protocol I and needs CUHK02). Optional: MS→M at scale 1e-3, directly comparable with the single-LR 1e-6 run (39.53 / 64.79). | Healthy: the ID loss falls well below ln(num_ids) and mAP is clearly above the RN50 result on the same setting (39.26). |
+| 1 | G1 backbone / projection | (a) default vs (b) CLIP RN50 end to end. Run the "no CSA, no GSD" config first and compare it with a DACS FedPav number. **Correction 2026-11-17:** DACS's FedPav script (`fed_dg_cls.py`) defaults to **momentum 0** and runs 41 rounds × 200 iterations, so that comparison needs `--set fed.optimizer.momentum=0 fed.local_iters=200 fed.rounds=41` on top of `ablation_fedpav.yaml`. The ablation config alone (momentum 0.9, 60 rounds × 1 epoch) is not expected to land on a FedPav row. | If the DACS-faithful baseline is far from DACS's number, the backbone or the data pipeline is not DACS's. |
 | 2 | G2 local epoch length | sampler-epoch vs fixed 200 iterations, 20 rounds each | Compare the trajectory to the baseline row and to 42.4; under-training shows as a curve still rising at round 60. |
-| 3 | G4 CUHK03 split | Evaluate the same →C3 checkpoint under the DACS split and under CUHK03-NP | No retraining. Whichever protocol puts FedPav near 22.5 / 24.3 is the one in use. |
+| 3 | G4 CUHK03 split | Evaluate the same →C3 checkpoint under the DACS split and under CUHK03-NP. **Done (3.1); it did not settle the question.** Next cheapest, needing neither CUHK02 nor a code change: the DACS-faithful FedPav baseline (overrides in rank 1) on MS+M→C3. | DACS's own number for that baseline is 19.9 / 18.5 (its supplement, protocol A); CO-EVO's Table 2 lists 15.2 / 14.1 for it. Near 19.9: our pipeline and protocol are DACS's, and CO-EVO's →C3 column was produced on another footing. Near 15: we are on CO-EVO's footing and the +7.3 is ours to explain. |
 | 4 | G3 `λ` | λ ∈ {0.5, 1, 2} on the CSA-only config | Target is the CSA-only row, 38.7 / 66.7. |
 | 5 | G10 model selection | None needed: log final and best-of-every-10 | If only "best" matches, the paper used DACS-style selection. |
 | 6 | G5 LR milestones | [20,30]/0.5 vs [30,50]/0.1 | Full 60-round run each; do after ranks 1-4 are settled. |
@@ -199,21 +238,35 @@ All tests: Protocol I, **MS+C2+C3→M**, RN50, one seed, change one thing agains
 
 Order of work this implies: FedPav baseline row → CSA-only row → GSD-only row → full model. Each row has a paper number, so a mismatch is localised before the next component is added.
 
+Baseline rungs that can be run before CUHK02 arrives, all with the rank-1 overrides: FedPav on MS+C3→M (DACS supplement 24.8 / 48.6) and on MS+M→C3 (19.9 / 18.5). A weaker reference, because its training recipe is not stated: MS→M alone, DACS Table 1 "Single Model (1)", 23.3 / 47.5. DACS trained on MSMT17 V1 (G12), so a small offset is possible in all three.
+
 ---
 
 ## 5. Data needed
 
-| Dataset | Used as | Where to get it | Notes |
-|---|---|---|---|
-| MSMT17 | source in all but one run, target in one | Request from the PKU VMC lab (dataset page of Wei et al., agreement form by e-mail). Only V2 is distributed now. | You have V2, **but the copy in this folder is incomplete**, see below. |
-| Market-1501 | source / target | Liang Zheng's project page (`Market-1501-v15.09.15.zip`); no application needed | Standard 751 / 750 split. |
-| CUHK03 | source / target | CUHK person re-ID datasets page (Xiaogang Wang's group), request form; file `cuhk03_release.zip` containing `cuhk-03.mat` | Needs conversion to the open-reid `meta.json` / `splits.json` layout (G4). CUHK03-NP split files come from Zhong Zhun's `person-re-ranking` repo if we need the alternative. |
-| CUHK02 | source only (target only in Protocol III) | Same CUHK page and form | Folder `Dataset/P1..P5/cam1,cam2/*.png`. |
+| Dataset | Used as | Where to get it | Notes | Status on the GPU PC, 2026-11-17 |
+|---|---|---|---|---|
+| MSMT17 | source in all but one run, target in one | Request from the PKU VMC lab (dataset page of Wei et al., agreement form by e-mail). Only V2 is distributed now. | The copy in the laptop folder is incomplete (§6). | **V2, complete**: 1,041 ids / 32,621 train; 11,659 query; 82,161 gallery. 3 truncated JPEGs repaired (ASSUMPTIONS A14). |
+| Market-1501 | source / target | Liang Zheng's project page (`Market-1501-v15.09.15.zip`); no application needed | Standard 751 / 750 split. | **In place**: 751 ids / 12,936 train; 3,368 query; 15,913 gallery. |
+| CUHK03 | source / target | CUHK person re-ID datasets page (Xiaogang Wang's group), request form; file `cuhk03_release.zip` containing `cuhk-03.mat` | Needs conversion to the open-reid `meta.json` / `splits.json` layout (G4). CUHK03-NP split files come from Zhong Zhun's `person-re-ranking` repo if we need the alternative. | **In place**: original `cuhk-03.mat` converted with `tools/prepare_cuhk03.py` (1,467 ids, 28,193 images, 20 splits, 100 test ids in split 0). Loader, split 0: 1,367 ids / 26,263 train; 200 query (100 ids); 1,730 gallery. The CUHK03-NP config files are also there; the loader does not use them. |
+| CUHK02 | source only (target only in Protocol III) | Same CUHK page and form | Folder `Dataset/P1..P5/cam1,cam2/*.png`. | **Not available**, requested from the authors. Blocks every Protocol I setting, Protocol III and the C2 rows of Protocol II. |
 
-Links are from memory and were not checked today; the CUHK page has been intermittently unavailable in the past, so request early.
+Links are from memory and were not checked today; the CUHK page has been intermittently unavailable in the past, so request early. The three datasets in place were verified on the GPU PC: no missing files, every image decodes.
 
-## 6. Problems found in this folder
+## 6. Problems found in this folder (2026-11-10), with their status on 2026-11-17
 
 1. **`MSMT17_V2` is incomplete.** `mask_train_v2/` is missing entirely. `mask_test_v2/` has 2,017 identity folders (0000-2016) and 63,090 images; the lists reference 3,060 identities and 93,820 test images. `list_train.txt` (30,248) + `list_val.txt` (2,373) are present but point at files that are not here. Looks like an interrupted extraction. The partial test set is still enough for CPU checks of the loader and evaluator.
+   **Resolved for training:** the GPU PC has a complete, verified copy (§5). The laptop copy is still the partial one and is only used for CPU checks.
 2. Not a git repository yet. `__MACOSX/` and `.DS_Store` are archive junk and will be ignored along with the dataset.
+   **Resolved:** the repo exists (branch `paper/co-evo`); datasets, archive junk, run outputs and the paper PDF are in `.gitignore`.
 3. Laptop has Python 3.13.7 and no PyTorch. A CPU build of a current PyTorch is needed for the smoke tests.
+   **Resolved:** the laptop uses a Python 3.12 `.venv` with the CPU build of PyTorch 2.7.1 (`requirements.txt`).
+
+## 7. Open questions for the authors
+
+1. CUHK02: the data, or a pointer to where it can be obtained.
+2. MSMT17 V1 or V2 (G12).
+3. CUHK03 test protocol (G4): the old 1,367 / 100 protocol (which split, which query rule) or CUHK03-NP (detected or labeled). Related: Table 2's two-source FedPav and DACS rows differ from DACS's own supplement (§2, inconsistency 6). Were they re-run, and with which code and protocol?
+4. ViT rows (G25): optimizer and learning rate, and whether the ViT is initialised from CLIP (our assumption, G1) or from ImageNet as in DACS.
+
+Worth one line each if they are answering anyway: the RN50 variant and how its feature meets the text space (G1), what "E = 1 epoch" is in iterations (G2), `λ` (G3), the LR milestones and decay factor (G5).

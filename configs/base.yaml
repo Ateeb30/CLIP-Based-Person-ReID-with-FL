@@ -93,6 +93,7 @@ fed:
     lr: 1.0e-3                 # [P]
     momentum: 0.9              # [P]
     weight_decay: 5.0e-4       # [P]
+    backbone_lr_scale: 1.0     # [A15] 1.0 = paper (one LR for all parameters); RN50 rows keep 1.0
   lr_milestones: [20, 30]      # rounds (0-based), MultiStepLR [P: schedule type only]
   lr_gamma: 0.5
 

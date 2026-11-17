@@ -1,6 +1,7 @@
 # Assumptions
 
-Everything the paper does not state, as implemented. `G#` refers to the GAPS table in `SPEC.md`.
+Everything the paper does not state, as implemented, plus the one place where a stated value is not
+followed (A15, ViT rows only). `G#` refers to the GAPS table in `SPEC.md`.
 Each row names the config key (in `configs/base.yaml`) that changes it, so every assumption can be
 tested without touching code. Rows marked **code** are structural and need a code change.
 
@@ -11,7 +12,7 @@ tested without touching code. Rows marked **code** are structural and need a cod
 | G1 | RN50 rows: ImageNet torchvision ResNet-50 (`IMAGENET1K_V1`), last stride 1, GAP, BatchNorm without affine, plus one bias-free linear 2048→512 on the BN feature used only by `L_align`; it is part of `θ` and is aggregated. ViT rows: CLIP ViT-B/16 image tower, stride 16, CLIP's own 768→512 projection for `L_align`. Phase I always uses frozen CLIP ViT-B/16. | `model.backbone`, `model.resnet50.*` | DACS / inference |
 | G2 | One local epoch = one pass of the identity sampler = `floor(ids × 4 / 64)` iterations. | `fed.local_epochs`, `fed.local_iters` (set to 200 for DACS behaviour) | literal reading |
 | G3 | `λ = 1.0` | `loss.align_weight` | CLIP-ReID |
-| G4 | CUHK03 in open-reid format, split 0, labeled + detected boxes merged, query = last image per (id, camera), gallery = the rest. | `data.datasets.cuhk03.split_id`; other protocols: **code** | DACS |
+| G4 | CUHK03 in open-reid format, split 0, labeled + detected boxes merged, query = last image per (id, camera), gallery = the rest. CUHK03-NP numbers for the same checkpoint were measured as supplementary (detected 16.35 / 15.00, against 31.56 / 34.00 under this protocol; SPEC §3.1); the authors have been asked which protocol they used. | `data.datasets.cuhk03.split_id`; other protocols: **code** | DACS |
 | G5 | LR × 0.5 at rounds 20 and 30 (0-based round index, as DACS's `scheduler.step(epoch)`). | `fed.lr_milestones`, `fed.lr_gamma` | DACS |
 | G6 | Phase I: Adam, lr 3.5e-4, wd 1e-4, cosine to 1e-6, 5 warm-up epochs from 1e-5, 120 epochs, batch 64, image features extracted once from un-augmented images. | `phase1.*` | CLIP-ReID stage 1 |
 | G7 | Phase I batches come from the identity sampler (16 ids × 4, other cameras preferred) so that `L_c3` has pairs to act on. | **code** | forced by Eq. 3 |
@@ -49,8 +50,9 @@ tested without touching code. Rows marked **code** are structural and need a cod
 | A10 | The style bank uses the Phase II normalisation (so RN50 and ViT runs have different banks), and stays fixed for the whole run. | **code** | Sec. 3.3, Alg. 1, Appendix |
 | A11 | Round evaluation uses the aggregated global model in eval mode (aggregated BN running statistics). | **code** | DACS |
 | A12 | MSMT17 V1 is supported only in its official layout (`train/`, `test/`, same file names as V2) by changing two config keys. The Market-style V1 re-packaging that DACS reads is not supported. | `data.datasets.msmt17.train_dir/test_dir` | no V1 copy available |
-| A13 | `tools/prepare_cuhk03.py` re-implements open-reid's conversion from memory. It has not been run on the real `cuhk-03.mat`. | — | no CUHK03 copy available |
+| A13 | `tools/prepare_cuhk03.py` re-implements open-reid's conversion from memory. Run on the real `cuhk-03.mat` it gives 1,467 ids, 28,193 images, 20 splits and 100 test ids in split 0 (the totals DACS's supplement states for CUHK03); the loader on split 0 then gives 1,367 ids / 26,263 train images, 200 query and 1,730 gallery images. | — | checked on the real file on the GPU PC (2026-11) |
 | A14 | The MSMT17_V2 zip used has three truncated JPEGs: `mask_train_v2/1029/1029_018_13_0114afternoon_0972_0.jpg` (train), `mask_test_v2/2590/2590_006_07_0114noon_0223_2.jpg` (query), `mask_test_v2/2592/2592_003_07_0114noon_0229_0_ex.jpg` (gallery). They were re-saved with the missing tail padded (PIL `LOAD_TRUNCATED_IMAGES`), outside the code. Effect expected negligible (3 of 126,441 images). | — | damaged archive |
+| A15 | Pretrained backbone parameters (ViT: `visual` + `proj`; RN50: `base`) use `lr × fed.optimizer.backbone_lr_scale`; all new layers and the classifiers use `lr`. The scale is 1.0 for RN50 (= paper: one LR for everything; the update is bit-identical to the previous single-group optimizer) and 1e-3 for ViT (`configs/backbone_vit.yaml`). For the ViT rows this departs from the single LR the paper states (SPEC G25). | `fed.optimizer.backbone_lr_scale` | the paper's single lr 1e-3 destroys CLIP ViT features in one step (`L_tri` gradient 506 vs 42 / 59), and a single LR of 1e-6 leaves the classifier at chance (ID loss 7.01 ≈ ln 1041); SPEC §3.2 |
 
 ## Known departures from bit-exact reproducibility
 

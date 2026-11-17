@@ -194,6 +194,71 @@ def test_vit_backbone_is_trainable_when_clip_is_frozen(smoke_cfg):
     assert not torch.equal(state["visual.conv1.weight"], before)
 
 
+def test_optimizer_scales_only_the_pretrained_backbone_lr(smoke_cfg):
+    """A15: pretrained backbone parameters train at lr * backbone_lr_scale, new layers and
+    the classifier at lr. With scale 1.0 (RN50) the update is the old single-group SGD."""
+    import copy
+
+    from coevo.fed import build_optimizer
+
+    def ids(params):
+        return sorted(id(p) for p in params)
+
+    root, lr = [f"data.root={smoke_cfg.data.root}"], 1e-3
+
+    # ViT overlay: CLIP tower + CLIP projection at 1e-6, BN neck + classifier at 1e-3
+    cfg = load_config([CONFIGS / "base.yaml", CONFIGS / "smoke.yaml", CONFIGS / "backbone_vit.yaml"], root)
+    assert cfg.fed.optimizer.backbone_lr_scale == pytest.approx(1e-3)
+    clip, _ = build_clip(cfg.clip, (cfg.data.height, cfg.data.width))
+    clip.requires_grad_(False)  # as in runner.run
+    vit, _, _ = build_image_encoder(cfg, clip)
+    classifier = torch.nn.Linear(vit.feat_dim, 5, bias=False)
+    optimizer = build_optimizer(vit, classifier, lr, cfg.fed.optimizer)
+    backbone, head = optimizer.param_groups
+    assert backbone["lr"] == pytest.approx(1e-6) and head["lr"] == pytest.approx(1e-3)
+    assert ids(backbone["params"]) == ids(list(vit.visual.parameters()) + [vit.proj])
+    assert ids(head["params"]) == ids([vit.feat_bn.weight, classifier.weight])
+    # every trainable parameter exactly once; the frozen BN-neck bias in neither group
+    grouped = ids(backbone["params"] + head["params"])
+    assert len(grouped) == len(set(grouped))
+    assert grouped == ids([p for p in vit.parameters() if p.requires_grad] + [classifier.weight])
+    assert id(vit.feat_bn.bias) not in grouped
+    for group in optimizer.param_groups:
+        assert (group["momentum"], group["weight_decay"]) == (cfg.fed.optimizer.momentum,
+                                                              cfg.fed.optimizer.weight_decay)
+    # the per-round MultiStepLR value is passed in as lr, so it scales both groups
+    decayed = build_optimizer(vit, classifier, round_lr(cfg.fed, 20), cfg.fed.optimizer)
+    assert [g["lr"] for g in decayed.param_groups] == pytest.approx([5e-7, 5e-4])
+
+    # RN50, scale 1.0: both groups at the paper's lr ...
+    cfg = load_config([CONFIGS / "base.yaml", CONFIGS / "smoke.yaml"], root)
+    assert cfg.fed.optimizer.backbone_lr_scale == 1.0
+    rn, _, _ = build_image_encoder(cfg)
+    classifier = torch.nn.Linear(rn.feat_dim, 5, bias=False)
+    reference, ref_classifier = copy.deepcopy(rn), copy.deepcopy(classifier)
+    optimizer = build_optimizer(rn, classifier, lr, cfg.fed.optimizer)
+    assert [g["lr"] for g in optimizer.param_groups] == [lr, lr]
+    assert ids(optimizer.param_groups[0]["params"]) == ids(rn.base.parameters())
+    assert ids(optimizer.param_groups[1]["params"]) == ids([rn.text_proj.weight, classifier.weight])
+    # ... and the same update, bit for bit, as the single-group optimizer used before A15
+    old_style = torch.optim.SGD(
+        [p for p in reference.parameters() if p.requires_grad] + list(ref_classifier.parameters()),
+        lr=lr, momentum=cfg.fed.optimizer.momentum, weight_decay=cfg.fed.optimizer.weight_decay)
+    pairs = list(zip(list(rn.parameters()) + [classifier.weight],
+                     list(reference.parameters()) + [ref_classifier.weight]))
+    before = [p.detach().clone() for p in (rn.base[0].weight, rn.text_proj.weight, classifier.weight)]
+    generator = torch.Generator().manual_seed(0)
+    for _ in range(2):  # second step exercises the momentum buffers
+        for new, old in pairs:
+            grad = torch.randn(new.shape, generator=generator)
+            new.grad, old.grad = grad.clone(), grad.clone()
+        optimizer.step()
+        old_style.step()
+    assert all(torch.equal(new, old) for new, old in pairs)
+    after = (rn.base[0].weight, rn.text_proj.weight, classifier.weight)
+    assert not any(torch.equal(a, b) for a, b in zip(after, before))  # both groups really stepped
+
+
 @pytest.mark.parametrize("backbone", ["resnet50", "clip_vit"])
 def test_image_encoder_interface(smoke_cfg, backbone):
     cfg = load_config([CONFIGS / "base.yaml", CONFIGS / "smoke.yaml"], [f"model.backbone={backbone}"])

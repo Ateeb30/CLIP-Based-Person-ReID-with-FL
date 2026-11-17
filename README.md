@@ -4,22 +4,29 @@ Reimplementation of **CO-EVO** (arXiv 2604.26363) from the paper; no official co
 
 - `SPEC.md` what the paper states, the protocols and target numbers, and every gap.
 - `ASSUMPTIONS.md` each unstated choice as implemented, with the config key that changes it.
+- `RESULTS.md` paper vs ours for every reported setting, from real run logs only.
 - `REMOTE_SETUP.md` GPU machine: AnyDesk, CUDA 12.8 PyTorch, data, launching, resuming.
 
 ## Status
 
 | Verified | Not verified |
 |---|---|
-| Unit tests pass (laptop CPU and GPU PC) | Any paper setting / paper number (needs CUHK02 and CUHK03) |
-| Smoke run end to end on synthetic data: Phase I, style bank, federated rounds, evaluation, checkpoint, resume; RN50 and ViT backbones; FedPav ablation (CPU and GPU) | CUHK02, CUHK03 loaders on real data (tested on synthetic copies of the layouts only) |
-| GPU PC (RTX 5080, torch 2.7.1+cu128): AMP path, speed, VRAM; full 60-round single-source runs | `tools/prepare_cuhk03.py` on the real `cuhk-03.mat` |
-| Market-1501 and MSMT17 V2 loaders on the full real data (counts match, no missing files) | |
+| Unit tests pass (laptop CPU and GPU PC) | CUHK02 loader on real data: the dataset is not available yet (tested on a synthetic copy of the layout only) |
+| Smoke run end to end on synthetic data: Phase I, style bank, federated rounds, evaluation, checkpoint, resume; RN50 and ViT backbones; FedPav ablation (CPU and GPU) | Every Protocol I and Protocol III setting and the C2 rows of Protocol II: all need CUHK02 |
+| GPU PC (RTX 5080, torch 2.7.1+cu128): AMP path, speed, VRAM; full 60-round runs | ViT rows: the separate backbone learning rate (below) has not been run on the GPU yet |
+| Market-1501, MSMT17 V2 and CUHK03 loaders on the full real data (counts match, no missing files); `tools/prepare_cuhk03.py` on the real `cuhk-03.mat` | |
 | Real CLIP ViT-B/16 and ImageNet RN50 weights load at 256×128 | |
+| Two Protocol II settings (RN50) run end to end: see `RESULTS.md` | |
 
 **ViT backbone fix (2026-11-11):** until this fix the ViT tower was frozen during federated training
 (it was deep-copied from the CLIP model after that model was frozen for Phase I), so only the BN
 neck, the projection and the classifiers trained. All ViT runs made before the fix are invalid.
 RN50 runs were not affected.
+
+**ViT learning rate (2026-11-17):** the paper's single SGD learning rate (1e-3) destroys the CLIP ViT,
+so `configs/backbone_vit.yaml` trains the pretrained tower at `lr × fed.optimizer.backbone_lr_scale`
+(1e-3, i.e. 1e-6) and the new layers at the paper's 1e-3. RN50 keeps one learning rate and its results
+are unchanged. Details: `ASSUMPTIONS.md` A15, `SPEC.md` G25.
 
 ## Setup (laptop, CPU)
 
@@ -79,7 +86,9 @@ python train.py --config configs\base.yaml configs\p1_cuhk03.yaml     # MS+C2+M 
 so one run covers both Protocol I →MS and Protocol III. `p1_msmt17.yaml` is the same training with
 MSMT17 as the only target.
 
-ViT rows of Table 1: add the backbone overlay and a separate output folder.
+ViT rows of Table 1: add the backbone overlay and a separate output folder. The overlay also sets
+the backbone learning-rate scale (`ASSUMPTIONS.md` A15); sweep it with
+`--set fed.optimizer.backbone_lr_scale=...`.
 
 ```powershell
 python train.py --config configs\base.yaml configs\p1_market.yaml configs\backbone_vit.yaml --set output_dir=runs/p1_market_vit
@@ -150,20 +159,20 @@ coevo/
   evaluation.py              feature extraction, mAP / CMC
   models/backbones.py        ResNet50Encoder, ClipViTEncoder
   models/clip_text.py        CLIP construction, PromptLearner, TextEncoder
-  fed/client.py              Client: local data, classifier, anchors, local update
+  fed/client.py              Client: local data, classifier, anchors, local update; build_optimizer
   fed/server.py              FedAvgAggregator
   data/datasets.py           the four dataset index builders
   data/loader.py             transforms, identity sampler, loaders
   utils.py                   seeding, logging, checkpoints, git info
 tools/                       make_synthetic.py, prepare_cuhk03.py
-tests/                       losses, style re-normalisation, aggregation, sampler, metrics, loaders, models
+tests/                       losses, style re-normalisation, aggregation, sampler, metrics, loaders, models, optimizer groups
 ```
 
 Extension points for later work (nothing below is implemented):
 
 | To add | Where |
 |---|---|
-| another backbone | a module returning `{"feat", "feat_bn", "proj"}` + one branch in `models.build_image_encoder` |
+| another backbone | a module returning `{"feat", "feat_bn", "proj"}` with a `backbone_parameters()` method (its pretrained weights) + one branch in `models.build_image_encoder` |
 | another aggregation rule or a privacy step on uploads | a class with `aggregate(states, num_samples)` + `fed.build_aggregator`; client uploads pass through `runner.run` in one place |
 | noise on shared style statistics | `StyleBank.from_client_templates` receives every client's templates before the bank is built |
 | a text-query branch | anchors and the CLIP text tower are built in `phase1.py`; `Client.anchors` is the only place they enter Phase II |

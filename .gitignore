@@ -27,6 +27,9 @@ __MACOSX/
 # ---- paper PDF (redistribution not clearly allowed by the arXiv licence)
 *.pdf
 
+# ---- pasted working prompts (not part of the repo)
+/Pasted*.md
+
 # ---- run outputs
 /runs/
 /cache/
